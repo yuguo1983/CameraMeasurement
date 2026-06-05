@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3DME - Stereo Measurement</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            background: #16213e;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            border-bottom: 2px solid #0f3460;
+        }
+        header h1 {
+            font-size: 1.4rem;
+            color: #e94560;
+        }
+        .mode-indicator {
+            background: #0f3460;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        .main-content {
+            display: flex;
+            flex: 1;
+        }
+        .sidebar {
+            width: 280px;
+            background: #16213e;
+            padding: 16px;
+            overflow-y: auto;
+            border-right: 1px solid #0f3460;
+        }
+        .sidebar h3 {
+            color: #e94560;
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .panel {
+            background: #1f2937;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        .panel-title {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #333;
+        }
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+        .stat-label {
+            color: #aaa;
+        }
+        .stat-value {
+            color: #4ade80;
+            font-weight: 500;
+        }
+        .points-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .point-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            background: #0f3460;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            font-size: 0.85rem;
+        }
+        .point-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .point-coords {
+            flex: 1;
+            font-family: monospace;
+        }
+        .distances-list {
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+        .distance-item {
+            padding: 4px 8px;
+            background: #16213e;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            color: #4ade80;
+        }
+        .image-viewer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #0d1117;
+        }
+        .image-tabs {
+            display: flex;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+        }
+        .image-tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .image-tab:hover {
+            background: #21262d;
+        }
+        .image-tab.active {
+            border-bottom-color: #e94560;
+            background: #1f2937;
+        }
+        .image-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .stereo-image {
+            max-width: 100%;
+            max-height: 100%;
+            cursor: crosshair;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+        }
+        .distance-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #ef4444;
+        }
+        .crosshair {
+            position: absolute;
+            pointer-events: none;
+        }
+        .crosshair-point {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border: 2px solid;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .crosshair-line-h, .crosshair-line-v {
+            position: absolute;
+            background: rgba(255,255,255,0.3);
+        }
+        .crosshair-line-h {
+            height: 1px;
+            width: 100%;
+            left: 0;
+        }
+        .crosshair-line-v {
+            width: 1px;
+            height: 100%;
+            top: 0;
+        }
+        .btn.active {
+            background: #e94560;
+            box-shadow: 0 0 8px #e94560;
+        }
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+        .status-bar {
+            background: #16213e;
+            padding: 8px 24px;
+            font-size: 0.8rem;
+            color: #888;
+            border-top: 1px solid #0f3460;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #e94560;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #ff6b6b;
+        }
+        .btn-secondary {
+            background: #0f3460;
+            color: #eee;
+        }
+        .btn-secondary:hover {
+            background: #1a4a7a;
+        }
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .control-item label {
+            font-size: 0.75rem;
+            color: #888;
+        }
+        .control-item input, .control-item select {
+            padding: 6px 8px;
+            background: #0f3460;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #eee;
+            font-size: 0.85rem;
+        }
+        .log-container {
+            background: #0d1117;
+            border-radius: 4px;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            max-height: 120px;
+            overflow-y: auto;
+            color: #888;
+        }
+        .log-entry {
+            padding: 2px 0;
+        }
+        .log-entry.info { color: #4ade80; }
+        .log-entry.warn { color: #fbbf24; }
+        .log-entry.error { color: #ef4444; }
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 16px;
+            z-index: 1000;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top-color: #e94560;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>3DME</h1>
+            <div class="mode-indicator" id="modeIndicator">Stereo Vision Measurement</div>
+            <div style="flex:1"></div>
+            <a href="/tutorial" target="_blank" style="color:#8b949e;font-size:0.85rem;text-decoration:none;margin-right:16px;transition:color 0.2s;" onmouseover="this.style.color='#e94560'" onmouseout="this.style.color='#8b949e'">📖 帮助</a>
+            <div id="connectionStatus" style="font-size:0.8rem;color:#888;">Connecting...</div>
+        </header>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="panel">
+                    <div class="panel-title">Camera Settings</div>
+                    <div class="controls">
+                        <div class="control-item">
+                            <label>Camera Index</label>
+                            <input type="number" id="cameraIndex" value="1" min="0" max="10">
+                        </div>
+                        <div class="control-item">
+                            <label>Resolution</label>
+                            <select id="resolution">
+                                <option value="3840x1080">3840×1080</option>
+                                <option value="1920x1080">1920×1080</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="btnCapture">Capture</button>
+                        <button class="btn btn-secondary" id="btnLive">Live</button>
+                        <button class="btn btn-secondary" id="btnRefresh">Refresh</button>
+                    </div>
+                    <div class="control-item" style="margin-top:8px">
+                        <label>Save Path</label>
+                        <div style="display:flex;gap:4px">
+                            <input type="text" id="savePath" value="calibration" style="flex:1;min-width:0">
+                            <button class="btn btn-secondary" id="btnSave" style="padding:4px 10px;font-size:0.8rem">Save</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">Stereo Parameters</div>
+                    <div class="stat-row">
+                        <span class="stat-label">Baseline</span>
+                        <span class="stat-value" id="baseline">60.00 mm</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Focal Length</span>
+                        <span class="stat-value" id="focalLength">1200 px</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Principal Point</span>
+                        <span class="stat-value" id="principalPoint">(1920, 540)</span>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="btnCalibrate">Calibrate</button>
+                        <button class="btn btn-secondary" id="btnLoadCal">Load Cal</button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">Measurement Points (<span id="pointCount">0</span>)</div>
+                    <div class="points-list" id="pointsList"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">Distances</div>
+                    <div class="distances-list" id="distancesList"></div>
+                    <div class="btn-group" style="margin-top:8px">
+                        <button class="btn btn-danger" id="btnClearTest">清空测试</button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">Console Log</div>
+                    <div class="log-container" id="logContainer"></div>
+                </div>
+            </div>
+
+            <div class="image-viewer">
+                <div class="image-tabs">
+                    <div class="image-tab" data-view="stereo">Stereo View</div>
+                    <div class="image-tab active" data-view="left">Left Only</div>
+                    <div class="image-tab" data-view="right">Right Only</div>
+                    <div class="image-tab" data-view="disparity">Disparity</div>
+                </div>
+                <div class="image-container" id="imageContainer">
+                    <img class="stereo-image" id="mainImage" src="/api/image" alt="Stereo Image">
+                    <svg class="distance-overlay" id="distanceOverlay"></svg>
+                    <div class="instructions">Click on image to add measurement point</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-bar" id="statusBar">
+            Ready - Click Capture to grab stereo images
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+        let points = [];
+        let currentView = 'left';
+        let liveIntervalId = null;
+
+        const COLORS = ['#ff4444', '#44ff44', '#4444ff', '#ffff44', '#ff44ff', '#44ffff', '#ff8800', '#00ffcc', '#ff0088', '#88ff00'];
+        const DASH_PATTERNS = ['8,4', '4,4', '12,6', '2,4', '6,3,2,3', '10,5,2,5'];
+
+        async function api(endpoint, options = {}) {
+            try {
+                const resp = await fetch(API_BASE + endpoint, {
+                    headers: { 'Content-Type': 'application/json' },
+                    ...options
+                });
+                if (!resp.ok) throw new Error(await resp.text());
+                return resp.json();
+            } catch (e) {
+                log(e.message, 'error');
+                throw e;
+            }
+        }
+
+        function log(msg, level = 'info') {
+            const container = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${level}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function updateStatus(msg) {
+            document.getElementById('statusBar').textContent = msg;
+        }
+
+        function updatePointsList() {
+            const container = document.getElementById('pointsList');
+            container.innerHTML = '';
+            points.forEach((p, i) => {
+                const item = document.createElement('div');
+                item.className = 'point-item';
+                item.innerHTML = `
+                    <div class="point-color" style="background:${COLORS[i % COLORS.length]}"></div>
+                    <div class="point-coords">(${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}) mm</div>
+                `;
+                container.appendChild(item);
+            });
+            document.getElementById('pointCount').textContent = points.length;
+        }
+
+        function updateDistancesList() {
+            const container = document.getElementById('distancesList');
+            container.innerHTML = '';
+            let lineIdx = 0;
+            for (let i = 0; i < points.length; i++) {
+                for (let j = i + 1; j < points.length; j++) {
+                    const dx = points[j].x - points[i].x;
+                    const dy = points[j].y - points[i].y;
+                    const dz = points[j].z - points[i].z;
+                    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                    const color = COLORS[lineIdx % COLORS.length];
+                    const item = document.createElement('div');
+                    item.className = 'distance-item';
+                    item.innerHTML = `<span style="display:inline-block;width:10px;height:2px;border-top:2px dashed ${color};vertical-align:middle;margin-right:6px"></span>d(${i},${j}) = ${dist.toFixed(2)} mm`;
+                    container.appendChild(item);
+                    lineIdx++;
+                }
+            }
+        }
+
+        function getImageWidth() {
+            // Left/Right: 1920, Stereo: 3840, Disparity: 1920
+            return currentView === 'stereo' ? 3840 : 1920;
+        }
+
+        function updateCrosshairs() {
+            const container = document.getElementById('imageContainer');
+            document.querySelectorAll('.crosshair').forEach(el => el.remove());
+            const imgW = getImageWidth();
+            points.forEach((p, i) => {
+                const img = document.getElementById('mainImage');
+                const rect = img.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+                const scaleX = rect.width / imgW;
+                const scaleY = rect.height / 1080;
+                const x = rect.left - containerRect.left + p.img_x * scaleX;
+                const y = rect.top - containerRect.top + p.img_y * scaleY;
+
+                const crosshair = document.createElement('div');
+                crosshair.className = 'crosshair';
+                crosshair.style.left = x + 'px';
+                crosshair.style.top = y + 'px';
+                crosshair.innerHTML = `
+                    <div class="crosshair-line-h" style="top:50%"></div>
+                    <div class="crosshair-line-v" style="left:50%"></div>
+                    <div class="crosshair-point" style="border-color:${COLORS[i % COLORS.length]};background:${COLORS[i % COLORS.length]}40"></div>
+                `;
+                container.appendChild(crosshair);
+            });
+        }
+
+        function updateDistanceLines() {
+            const svg = document.getElementById('distanceOverlay');
+            const img = document.getElementById('mainImage');
+            const rect = img.getBoundingClientRect();
+            const containerRect = document.getElementById('imageContainer').getBoundingClientRect();
+            const imgW = getImageWidth();
+            const scaleX = rect.width / imgW;
+            const scaleY = rect.height / 1080;
+
+            // Position and size SVG to match image
+            svg.style.left = (rect.left - containerRect.left) + 'px';
+            svg.style.top = (rect.top - containerRect.top) + 'px';
+            svg.style.width = rect.width + 'px';
+            svg.style.height = rect.height + 'px';
+            svg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+
+            let lines = [];
+            let lineIdx = 0;
+            for (let i = 0; i < points.length; i++) {
+                for (let j = i + 1; j < points.length; j++) {
+                    const x1 = points[i].img_x * scaleX;
+                    const y1 = points[i].img_y * scaleY;
+                    const x2 = points[j].img_x * scaleX;
+                    const y2 = points[j].img_y * scaleY;
+                    const color = COLORS[lineIdx % COLORS.length];
+                    const dash = DASH_PATTERNS[lineIdx % DASH_PATTERNS.length];
+                    lines.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" opacity="0.8"/>`);
+                    lineIdx++;
+                }
+            }
+            svg.innerHTML = lines.join('\n');
+        }
+
+        function clearTest() {
+            points = [];
+            updatePointsList();
+            updateDistancesList();
+            updateCrosshairs();
+            document.getElementById('distanceOverlay').innerHTML = '';
+            updateStatus('测试已清空');
+            log('测试已清空', 'info');
+        }
+
+        async function capture() {
+            // Stop live mode if running
+            if (liveIntervalId) {
+                toggleLive();
+            }
+            log('Capturing stereo pair...');
+            try {
+                const idx = document.getElementById('cameraIndex').value;
+                await api(`/api/capture?camera=${idx}`);
+                log('Capture complete', 'info');
+                refreshImage();
+                updateStatus('Capture complete - Click image to add points');
+            } catch (e) {
+                log('Capture failed: ' + e.message, 'error');
+            }
+        }
+
+        async function calibrate() {
+            log('Starting calibration...');
+            try {
+                const dir = document.getElementById('savePath').value.trim() || 'calibration';
+                const result = await api('/api/calibrate', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        boardCols: 9,
+                        boardRows: 6,
+                        squareSizeMm: 30.0,
+                        directory: dir
+                    })
+                });
+                document.getElementById('baseline').textContent = result.baseline_mm.toFixed(2) + ' mm';
+                document.getElementById('focalLength').textContent = result.focal_length_px.toFixed(0) + ' px';
+                document.getElementById('principalPoint').textContent =
+                    `(${result.principal_point[0].toFixed(0)}, ${result.principal_point[1].toFixed(0)})`;
+                log('Calibration complete', 'info');
+                updateStatus('Calibration complete');
+            } catch (e) {
+                log('Calibration failed: ' + e.message, 'error');
+            }
+        }
+
+        async function loadCalibration() {
+            try {
+                const result = await api('/api/parameters');
+                document.getElementById('baseline').textContent = result.baseline_mm.toFixed(2) + ' mm';
+                document.getElementById('focalLength').textContent = result.focal_length_px.toFixed(0) + ' px';
+                log('Calibration loaded', 'info');
+            } catch (e) {
+                log('No calibration found', 'warn');
+            }
+        }
+
+        async function addPoint(imgX, imgY) {
+            try {
+                const result = await api('/api/point', {
+                    method: 'POST',
+                    body: JSON.stringify({ x: imgX, y: imgY })
+                });
+                points.push(result);
+                updatePointsList();
+                updateDistancesList();
+                updateCrosshairs();
+                updateDistanceLines();
+                updateStatus(`Point ${points.length - 1} added: (${result.x.toFixed(1)}, ${result.y.toFixed(1)}, ${result.z.toFixed(1)}) mm`);
+            } catch (e) {
+                log('Failed to add point: ' + e.message, 'error');
+            }
+        }
+
+        function refreshImage() {
+            const img = document.getElementById('mainImage');
+            img.src = `/api/image?view=${currentView}&t=${Date.now()}`;
+            setTimeout(() => {
+                updateCrosshairs();
+                updateDistanceLines();
+            }, 100);
+        }
+
+        function toggleLive() {
+            const btn = document.getElementById('btnLive');
+            if (liveIntervalId) {
+                clearTimeout(liveIntervalId);
+                liveIntervalId = null;
+                btn.textContent = 'Live';
+                btn.classList.remove('active');
+                document.getElementById('btnCapture').disabled = false;
+                updateStatus('Live mode stopped');
+                log('Live mode stopped', 'info');
+                return;
+            }
+
+            btn.textContent = 'Live ●';
+            btn.classList.add('active');
+            document.getElementById('btnCapture').disabled = true;
+            updateStatus('Live mode - streaming...');
+            log('Live mode started', 'info');
+
+            // Use recursive setTimeout — 17ms ≈ 60fps
+            async function liveLoop() {
+                if (!liveIntervalId) return;
+                try {
+                    await api(`/api/capture?camera=${document.getElementById('cameraIndex').value}`);
+                    const img = document.getElementById('mainImage');
+                    img.src = `/api/image?view=${currentView}&t=${Date.now()}`;
+                } catch (e) {
+                    // Silently retry
+                }
+                if (liveIntervalId) {
+                    liveIntervalId = setTimeout(liveLoop, 17);
+                }
+            }
+            liveIntervalId = setTimeout(liveLoop, 17);
+        }
+
+        async function saveImages() {
+            const dir = document.getElementById('savePath').value.trim() || 'calibration';
+            log(`Saving stereo pair to ${dir}/...`);
+            try {
+                const result = await api('/api/save', {
+                    method: 'POST',
+                    body: JSON.stringify({ directory: dir })
+                });
+                log(`Saved [${result.index}]: ${result.left}, ${result.right}`, 'info');
+                updateStatus(`Saved to ${dir}/`);
+            } catch (e) {
+                log('Save failed: ' + e.message, 'error');
+            }
+        }
+
+        document.getElementById('btnCapture').onclick = capture;
+        document.getElementById('btnRefresh').onclick = refreshImage;
+        document.getElementById('btnLive').onclick = toggleLive;
+        document.getElementById('btnSave').onclick = saveImages;
+        document.getElementById('btnCalibrate').onclick = calibrate;
+        document.getElementById('btnLoadCal').onclick = loadCalibration;
+        document.getElementById('btnClearTest').onclick = clearTest;
+
+        document.querySelectorAll('.image-tab').forEach(tab => {
+            tab.onclick = () => {
+                document.querySelectorAll('.image-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentView = tab.dataset.view;
+                refreshImage();
+            };
+        });
+
+        document.getElementById('imageContainer').onclick = (e) => {
+            // Stop live mode before adding measurement point
+            if (liveIntervalId) {
+                toggleLive();
+            }
+            const img = document.getElementById('mainImage');
+            const rect = img.getBoundingClientRect();
+            const imgW = getImageWidth();
+            const imgX = (e.clientX - rect.left) / rect.width * imgW;
+            const imgY = (e.clientY - rect.top) / rect.height * 1080;
+            addPoint(imgX, imgY);
+        };
+
+        window.onresize = () => {
+            updateCrosshairs();
+            updateDistanceLines();
+        };
+
+        (async () => {
+            log('GUI initialized', 'info');
+            document.getElementById('connectionStatus').textContent = 'Connected';
+            updateStatus('Ready - Capture stereo pair to begin');
+            await loadCalibration();
+        })();
+    </script>
+</body>
+</html>
